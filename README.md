@@ -1,160 +1,156 @@
-[![DOI](https://zenodo.org/badge/170540207.svg)](https://zenodo.org/badge/latestdoi/170540207)
-![Build Status](https://travis-ci.org/dwyl/esta.svg?branch=master)
+# Arduino-MQ131-driver
+Arduino library for ozone gas sensor MQ131
 
-# MQSensorsLib
+[![GitHub](https://img.shields.io/github/license/mashape/apistatus.svg)](https://github.com/ostaquet/Arduino-MQ131-driver/blob/master/LICENSE)
+[![GitHub release](https://img.shields.io/github/release/ostaquet/Arduino-MQ131-driver.svg)](#releases)
+[![GitHub issues](https://img.shields.io/github/issues/ostaquet/Arduino-MQ131-driver.svg)](https://github.com/ostaquet/Arduino-MQ131-driver/issues)
 
-This is a unified library to use sensors MQ: 2, 3, 4, 5, 6, 7, 8, 9, 131, 135, 303A and 309A.
+ This is a comprehensive Arduino library to obtain ozone (O3) concentration in the air with the Winsen MQ131 sensor. The library supports both versions of the sensor (low concentration and high concentration), the calibration, the control of the heater, the environmental adjustments (temperature and humidity) and the output of values in ppm (parts per million), ppb (parts per billion), mg/m3 and µg/m3.
 
-## Getting Started
+## To know before starting...
+ * The MQ131 is a [semiconductor gas sensor](https://en.wikipedia.org/wiki/Gas_detector#Semiconductor) composed by a heater circuit and a sensor circuit.
+ * Heater consumes at least 150 mA. So, __don't connect it directly on a pin of the Arduino__.
+ * It is important to respect the pinout of the sensor. If you put Vcc on the sensor and not on the heater, __you could damage your sensor irreversibly.__ 
+ * Sensor MQ131 requires minimum 48h preheat time before giving consistent results (also called "burn-in" time)
+ * There are three different MQ131: 
+   * a black bakelite sensor for low concentration of ozone (with WO3 sensitive material)
+   * a blue bakelite sensor for low concentration of ozone (with SnO2 sensitive material)
+   * a metal sensor for high concentration of ozone.
+ * This driver is made to control the "naked" [Winsen](https://www.winsen-sensor.com) MQ131. The driver is able to pilot the [low concentration WO3 version](https://github.com/ostaquet/Arduino-MQ131-driver/blob/master/extras/datasheet/MQ131-low-concentration.pdf), the [low concentration Sn02 version](https://github.com/ostaquet/Arduino-MQ131-driver/blob/master/extras/datasheet/MQ131-low-concentration-SnO2.pdf) and the [high concentration version](https://github.com/ostaquet/Arduino-MQ131-driver/blob/master/extras/datasheet/MQ131-high-concentration.pdf).
+ * To measure the air quality (e.g. pollution), it's better to use the low concentration MQ131 because the high concentration is not accurate enough for low concentration.
+ 
+## How to install the library?
+The easiest way to install the library is to go to the Library manager of the Arduino IDE and install the library.
+ 1. In the Arduino IDE, go into Menu _Tools_ -> _Manage Libraries..._
+ 2. Search for _MQ131_
+ 3. Install _MQ131 gas sensor by Olivier Staquet_
+ 
+## Circuit
+ * Heater is controlled by MOSFET N-channel via the control pin (on schema pin 2, yellow connector)
+ * Result of the sensor is read through analog with RL of 1MΩ (on schema pin A0, green connector)
+ 
+Remarks:
+ * The MOSFET is a IRF840 but any N-channel MOSFET that can be controlled by 5V is OK.
+ * The load resistance (RL) can be different than 1MΩ (tested also with 10kΩ) but don't forget to calibrate the R0 and time to heat.
 
+![Breadboard schematics](extras/img/MQ131_bb.png)
+
+![MQ131 pinout](extras/img/MQ131_pinout.png)
+
+![Schematics](extras/img/MQ131_schem.png)
+
+## Basic program to use your MQ131
 ```
-#define placa "Arduino UNO"
-#define Voltage_Resolution 5
-#define pin A0 //Analog input 0 of your arduino
-#define type "MQ-4" //MQ4
-#define ADC_Bit_Resolution 10 // For arduino UNO/MEGA/NANO
-MQUnifiedsensor MQ4(placa, Voltage_Resolution, ADC_Bit_Resolution, pin, type); //Example if sensor is MQ4 on Arduino UNO board
-MQ4.setRegressionMethod("Exponential"); //_PPM =  a*ratio^b
-MQ4.setA(1012.7); MQ4.setB(-2.786); // Configurate the ecuation values to get CH4 concentration
-MQ4.setR0(3.86018237);
-MQ4.init();
-MQ4.update();
-float ppmCH4 = MQ4.readSensor();
-```
+#include "MQ131.h"
 
-## Wiring
+void setup() {
+  Serial.begin(115200);
 
-### Arduino
-![Arduino_Wiring_MQSensor](https://raw.githubusercontent.com/miguel5612/MQSensorsLib_Docs/master/static/img/MQ_Arduino.PNG)
+  // Init the sensor
+  // - Heater control on pin 2
+  // - Sensor analog read on pin A0
+  // - Model LOW_CONCENTRATION
+  // - Load resistance RL of 1MOhms (1000000 Ohms)
+  MQ131.begin(2,A0, LOW_CONCENTRATION, 1000000);  
 
-### ESP8266
-![ESP8266_Wiring_MQSensor](https://raw.githubusercontent.com/miguel5612/MQSensorsLib_Docs/master/static/img/MQ_ESP8266.PNG)
-
-### User Manual New!! 12.2019
-[Manual](https://drive.google.com/open?id=1BAFInlvqKR7h81zETtjz4_RC2EssvFWX)
-
-[Excel_Help_Spreadsheet (Fill only Volaje Between RL - RS - RL Values)](https://drive.google.com/open?id=1MKDcudQ7BHL_vLGi-lgPh9-pblvygRMq)
-
-### Prerequisites
-
-You'll need Arduino desktop app 1.8.9 or later.
-
-### Sensor manufacture:
-| Sensor | Manufacture | URL Datasheet |
-|----------|----------|----------|
-| MQ-2 | Pololulu| [datasheet](https://www.pololu.com/file/0J309/MQ2.pdf) |
-| MQ-3 | Sparkfun | [datasheet](https://www.sparkfun.com/datasheets/Sensors/MQ-3.pdf) |
-| MQ-4 | Sparkfun | [datasheet](https://www.sparkfun.com/datasheets/Sensors/Biometric/MQ-4.pdf) |
-| MQ-5 | parallax | [datasheet](https://www.parallax.com/sites/default/files/downloads/605-00009-MQ-5-Datasheet.pdf) |
-| MQ-6 | Sparkfun | [datasheet](https://www.sparkfun.com/datasheets/Sensors/Biometric/MQ-6.pdf) |
-| MQ-7 | Sparkfun | [datasheet](https://www.sparkfun.com/datasheets/Sensors/Biometric/MQ-7.pdf) |
-| MQ-8 | Sparkfun | [datasheet](https://dlnmh9ip6v2uc.cloudfront.net/datasheets/Sensors/Biometric/MQ-8.pdf) |
-| MQ-9 | Haoyuelectronics | [datasheet](http://www.haoyuelectronics.com/Attachment/MQ-9/MQ9.pdf) |
-| MQ-131 | Sensorsportal | [datasheet](http://www.sensorsportal.com/DOWNLOADS/MQ131.pdf) |
-| MQ-135 | HANWEI Electronics | [datasheet](https://www.electronicoscaldas.com/datasheet/MQ-135_Hanwei.pdf) |
-| MQ-303A | HANWEI Electronics | [datasheet](http://www.kosmodrom.com.ua/pdf/MQ303A.pdf) |
-| MQ-309A | HANWEI Electronics | [datasheet](http://www.sensorica.ru/pdf/MQ-309A.pdf) |
-
-### Info of datasheets 
-
-Review WPDigitalizer [folder](https://github.com/miguel5612/MQSensorsLib_Docs/tree/master/WPDigitalizer) [website](https://automeris.io/WebPlotDigitizer/)
-
-### Installing
-
-Clone this repository into your desktop machine
-
-```
-git clone https://github.com/miguel5612/MQSensorsLib
-```
-
-
-## Running the tests
-
-Use calibration systems if you have several sensors that read the same gas.
-
-### Break down into end to end tests
-
-These tests can re-adjust values defined previously and you can contribute to improve conditions or features obtained from particular scenes.
-
-```
-Examples/MQ-3
-```
-
-### And coding style tests
-
-These tests may generate statistics validation using descriptive tools for quantitative variables.
-
-```
-Examples/MQ-board.ino
-```
-
-## Built With
-
-* [Data sheets](https://github.com/miguel5612/MQSensorsLib_Docs/tree/master/Datasheets) - Curves and behavior for each sensor, using logarithmic graphs.
-* [Main purpose](https://github.com/miguel5612/MQSensorsLib_Docs/blob/master/static/img/bg.jpg) - Every sensor has high sensibility for a specific gas or material.
-
-## Contributing
-
-Please read [CONTRIBUTING.md](https://github.com/miguel5612/MQSensorsLib/blob/master/CONTRIBUTING.md) for details on our code of conduct, and the process for submitting pull requests to us.
-
-## Authors
-
-* **Miguel A. Califa U.** - [*GitHub*](https://github.com/miguel5612) - [CV](https://scienti.colciencias.gov.co/cvlac/visualizador/generarCurriculoCv.do?cod_rh=0000050477)
-* **Ghiordy F. Contreras C.** - [*GitHub*](https://github.com/Ghiordy) - [CV](https://scienti.colciencias.gov.co/cvlac/visualizador/generarCurriculoCv.do?cod_rh=0000050476) 
-* **Yersson R. Carrillo A.** - [*GitHub*](https://github.com/Yercar18/Dronefenix)  - [CV](https://scienti.colciencias.gov.co/cvlac/visualizador/generarCurriculoCv.do?cod_rh=0001637655)
-
-## Collaborators
-
-* **Andres A. Martinez.** 
-* **Juan A. Rodríguez.** - [*Github*](https://github.com/Obiot24)
-* **Mario A. Rodríguez O.** - [*GitHub*](https://github.com/MarioAndresR) - [CV](https://scienti.colciencias.gov.co/cvlac/visualizador/generarCurriculoCv.do?cod_rh=0000111304)
-
-See also the list of [contributors](https://github.com/miguel5612/MQSensorsLib/contributors) who participated in this project.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
-
-## Cite as
-
-* Plain text: Califa Urquiza, Miguel Angel, Contreras Contreras, Ghiordy, & Carrillo Amado, Yerson Ramiro. (2019, September 3). miguel5612/MQSensorsLib: Arduino Preview V1.03 (Version 1.0.3). Zenodo. http://doi.org/10.5281/zenodo.3384301
-* CSL: {
-  "publisher": "Zenodo", 
-  "DOI": "10.5281/zenodo.3384301", 
-  "title": "miguel5612/MQSensorsLib: Arduino Preview V1.03", 
-  "issued": {
-    "date-parts": [
-      [
-        2019, 
-        9, 
-        3
-      ]
-    ]
-  }, 
-  "abstract": "<p>Publishing on Zenodo platform as software in order to extend its applications for other works allowing to recognize MQSensorLib&#39;s Authors this work into scientific community using Digital Object Identifier System (DOI).</p>", 
-  "author": [
-    {
-      "family": "Califa Urquiza, Miguel Angel"
-    }, 
-    {
-      "family": "Contreras Contreras, Ghiordy"
-    }, 
-    {
-      "family": "Carrillo Amado, Yerson Ramiro"
-    }
-  ], 
-  "version": "1.0.3", 
-  "type": "article", 
-  "id": "3384301"
+  Serial.println("Calibration in progress...");
+  
+  MQ131.calibrate();
+  
+  Serial.println("Calibration done!");
+  Serial.print("R0 = ");
+  Serial.print(MQ131.getR0());
+  Serial.println(" Ohms");
+  Serial.print("Time to heat = ");
+  Serial.print(MQ131.getTimeToRead());
+  Serial.println(" s");
 }
-* BibTeX: 
-@misc{califa_urquiza_miguel_angel_2019_3384301,
-  author       = {Califa Urquiza, Miguel Angel and
-                  Contreras Contreras, Ghiordy and
-                  Carrillo Amado, Yerson Ramiro},
-  title        = {miguel5612/MQSensorsLib: Arduino Preview V1.03},
-  month        = sep,
-  year         = 2019,
-  doi          = {10.5281/zenodo.3384301},
-  url          = {https://doi.org/10.5281/zenodo.3384301}
+
+void loop() {
+  Serial.println("Sampling...");
+  MQ131.sample();
+  Serial.print("Concentration O3 : ");
+  Serial.print(MQ131.getO3(PPM));
+  Serial.println(" ppm");
+  Serial.print("Concentration O3 : ");
+  Serial.print(MQ131.getO3(PPB));
+  Serial.println(" ppb");
+  Serial.print("Concentration O3 : ");
+  Serial.print(MQ131.getO3(MG_M3));
+  Serial.println(" mg/m3");
+  Serial.print("Concentration O3 : ");
+  Serial.print(MQ131.getO3(UG_M3));
+  Serial.println(" ug/m3");
+
+  delay(60000);
 }
+```
+
+The result gives us:
+```
+Calibration in progress...
+Calibration done!
+R0 = 1917.22 Ohms
+Time to heat = 80 s
+Sampling...
+Concentration O3 : 0.01 ppm
+Concentration O3 : 7.95 ppb
+Concentration O3 : 0.02 mg/m3
+Concentration O3 : 16.80 ug/m3
+```
+
+## Usage
+The driver has to be initialized with 4 parameters:
+ * Pin to control the heater power (example: 2)
+ * Pin to measure the analog output (example: A0)
+ * Model of sensor `LOW_CONCENTRATION`, `SN_O2_LOW_CONCENTRATION` or `HIGH_CONCENTRATION` (example: `LOW_CONCENTRATION`)
+ * Value of load resistance in Ohms (example: 1000000 Ohms)
+```
+MQ131.begin(2,A0, LOW_CONCENTRATION, 1000000);
+```
+
+Before using the driver, it's better to calibrate it. You can do that through the function `calibrate()`. The best is to calibrate the sensor at 20°C and 65% of humidity in clean fresh air. If you need some log on the console, mention the serial in the function `begin()` (example by using the standard Serial: `MQ131.begin(2,A0, LOW_CONCENTRATION, 1000000, (Stream *)&Serial);`).
+
+The calibration adjusts 2 parameters:
+ * The value of the base resistance (R0)
+ * The time required to heat the sensor and get consistent readings (Time to read)
+```
+MQ131.calibrate();
+```
+
+Those calibration values are used for the usage of the sensor as long as the Arduino is not restarted. Nevertheless, you can get the values for your sensor through the getters:
+```
+MQ131.getR0();
+MQ131.getTimeToRead();
+```
+
+And set up the values in the initialization of your program through the setters:
+```
+MQ131.setR0(value);
+MQ131.setTimeToRead(value);
+```
+
+In order to get the values from the sensor, you just start the process with the `sample()` function. **Please notice that the function locks the flow.** If you want to do additional processing during the heating/reading process, you should extend the class. The methods are protected and the driver can be extended easily.
+```
+MQ131.sample();
+```
+
+The reading of the values is done through the `getO3()` function. Based on the parameter, you can ask to receive the result in ppm (`PPM`), ppb (`PPB`), mg/m3 (`MG_M3`) or µg/m3 (`UG_M3`).
+```
+MQ131.getO3(PPM);
+MQ131.getO3(PPB);
+MQ131.getO3(MG_M3);
+MQ131.getO3(UG_M3);
+```
+
+The sensor is sensible to environmental variation (temperature and humidity). If you want to have correct values, you should set the temperature and the humidity before the call to `getO3()` function with the function `setEnv()`. Temperature are in °C and humidity in %. The values should come from another sensor like the DHT22.
+```
+MQ131.setEnv(23, 70);
+```
+
+
+## Links
+ * [Calculation of sensitivity curves](https://github.com/ostaquet/Arduino-MQ131-driver/blob/master/extras/datasheet/Sensitivity_curves.xlsx)
+ * [Datasheet MQ131 low concentration WO3 (black bakelite version)](https://github.com/ostaquet/Arduino-MQ131-driver/blob/master/extras/datasheet/MQ131-low-concentration.pdf)
+ * [Datasheet MQ131 low concentration SnO2 (blue bakelite version)](https://github.com/ostaquet/Arduino-MQ131-driver/blob/master/extras/datasheet/MQ131-low-concentration-SnO2.pdf)
+ * [Datasheet MQ131 high concentration (metal version)](https://github.com/ostaquet/Arduino-MQ131-driver/blob/master/extras/datasheet/MQ131-high-concentration.pdf)
