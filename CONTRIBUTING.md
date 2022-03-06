@@ -1,22 +1,13 @@
-# Contributing
+# Contribution Guidlines
 
-When contributing to this repository, please first discuss the change you wish to make via issue,
-email, or any other method with the owners of this repository before making a change. 
+This library is the culmination of the expertise of many members of the open source community who have dedicated their time and hard work. The best way to ask for help or propose a new idea is to [create a new issue](https://github.com/adafruit/DHT-sensor-library/issues/new) while creating a Pull Request with your code changes allows you to share your own innovations with the rest of the community.
 
-Please note we have a code of conduct, please follow it in all your interactions with the project.
+The following are some guidelines to observe when creating issues or PRs:
 
-## Pull Request Process
+- Be friendly; it is important that we can all enjoy a safe space as we are all working on the same project and it is okay for people to have different ideas
 
-1. Ensure any install or build dependencies are removed before the end of the layer when doing a 
-   build.
-2. Create a new branch with a keyword of your contribution or main issue.
-3. Update the README.md with details of changes to the new features or fixed settings done.
-4. Commit your additions and deletions, or new files to the branch created previously.
-5. When the changes are stable and run effectively, make a pull request to master branch.
+- [Use code blocks](https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet#code); it helps us help you when we can read your code! On that note also refrain from pasting more than 30 lines of code in a post, instead [create a gist](https://gist.github.com/) if you need to share large snippets
 
-## Review of pull request
+- Use reasonable titles; refrain from using overly long or capitalized titles as they are usually annoying and do little to encourage others to help :smile:
 
-Pull request will be check by three main authors who are linked in 
-[REAMDE.md](https://github.com/miguel5612/MQSensorsLib/README.md) and they determine to merge to
-master branch. Later than assessment and debbuging procedures was completed, the contribution 
-will be released.
+- Be detailed; refrain from mentioning code problems without sharing your source code and always give information regarding your board and version of the library
