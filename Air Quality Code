@@ -1,0 +1,429 @@
+#include <SPI.h>
+#include <SD.h>
+#include <LCD_I2C.h>
+#include <Wire.h>
+#include "RTClib.h"
+#include <Adafruit_Sensor.h>
+#include <DHT.h>
+#include <DHT_U.h>
+//#include <MQ131.h>
+#include <MQ135.h>
+#include <MQUnifiedsensor.h>
+#include "SparkFunMPL3115A2.h"
+
+#define DHTPIN            7
+#define DHTTYPE           DHT21
+
+//Definitions
+#define placa "Arduino MEGA"
+#define Voltage_Resolution 5
+#define pin A4 //Analog input 0 of your arduino
+#define type "MQ-8" //MQ8
+#define ADC_Bit_Resolution 10 // For arduino UNO/MEGA/NANO
+#define RatioMQ8CleanAir 70   //RS / R0 = 70 ppm  
+//#define calibration_button 13 //Pin to calibrate your sensor
+
+//Definitions
+#define placa "Arduino MEGA"
+#define Voltage_Resolution 5
+#define pin A0 //Analog input 0 of your arduino
+#define type "MQ-135" //MQ135
+#define ADC_Bit_Resolution 10 // For arduino UNO/MEGA/NANO
+#define RatioMQ135CleanAir 3.6//RS / R0 = 3.6 ppm  
+//#define calibration_button 13 //Pin to calibrate your sensor
+MQUnifiedsensor MQ135(placa, Voltage_Resolution, ADC_Bit_Resolution, pin, type);
+MQUnifiedsensor MQ131(placa, Voltage_Resolution, ADC_Bit_Resolution, pin, type);
+MQUnifiedsensor MQ8(placa, Voltage_Resolution, ADC_Bit_Resolution, pin, type);
+
+//Definitions
+#define placa "Arduino MEGA"
+#define Voltage_Resolution 5
+#define pin A0 //Analog input 0 of your arduino
+#define type "MQ-131" //MQ131
+#define ADC_Bit_Resolution 10 // For arduino UNO/MEGA/NANO
+#define RatioMQ131CleanAir 15 //RS / R0 = 15 ppm
+//#define calibration_button 13 //Pin to calibrate your sensor
+
+LCD_I2C lcd(0x27, 16, 2);
+
+DHT_Unified dht(DHTPIN, DHTTYPE);
+uint32_t delayMS;
+
+//const int ANALOGPIN=A0;
+//MQ135 gasSensor = MQ135(ANALOGPIN);
+
+//const int ANALOGPIN1=A4;
+//MQ8 gasSensor = MQ8(ANALOGPIN);
+
+RTC_DS3231 rtc;
+char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+
+int fan = 8;
+//float CO, Alcohol, CO2, Tolueno, NH4, Acetona;
+
+File myFile;
+long id =0;
+int pinCS = 53;
+MPL3115A2 myPressure;
+
+void setup() {
+  // put your setup code here, to run once:
+  lcd.begin();
+  lcd.backlight();
+  pinMode(pinCS,OUTPUT);
+   Wire.begin(); 
+    myPressure.begin(); 
+     myPressure.setModeBarometer(); // Measure pressure in Pascals from 20 to 110 kPa
+  
+  myPressure.setOversampleRate(7); // Set Oversample to the recommended 128
+  myPressure.enableEventFlags(); // Enable all three pressure and temp event flags 
+
+  
+  MQ135.setRegressionMethod(1); //_PPM =  a*ratio^b
+
+  MQ131.setRegressionMethod(1); //_PPM =  a*ratio^b
+  MQ131.setA(23.943); MQ131.setB(-1.11); // Configurate the ecuation values to get O3 concentration
+
+ MQ8.setRegressionMethod(1); //_PPM =  a*ratio^b
+ MQ8.setA(976.97); MQ8.setB(-0.688); // Configurate the ecuation values to get H2 concentration
+  /*****************************  MQ Init ********************************************/ 
+  //Remarks: Configure the pin of arduino as input.
+  /************************************************************************************/ 
+  MQ135.init(); 
+  MQ131.init(); 
+  MQ8.init();  
+  rtc.begin();
+   
+   Serial.begin(9600);
+
+   if (SD.begin()) {
+    Serial.println("initializED");
+  }
+  else{
+  Serial.println("initialization failed.");
+  return;
+  }
+  File myFile = SD.open("air.csv", FILE_WRITE);
+
+  // if the file opened okay, write to it:
+  if (myFile) {
+    Serial.println("Writing to air.csv...");
+
+    String header = "Date, Time, ID, Temp(*C), Rel.H(%}, 03(W), NO2(ppm), CO2(ppm), CH4(ppm),CO(ppm), Pres(InHg), Alt(m) ";
+    myFile.println(" , , , , , , , , , , , ,"); //Just a leading blank line, incase there was previous data
+    myFile.println(header);
+    myFile.close();
+  }
+  
+
+
+ if (! rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    while (1);
+  }
+
+  if (rtc.lostPower()) {
+    Serial.println("RTC lost power, lets set the time!");
+    // following line sets the RTC to the date & time this sketch was compiled
+ //  rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    // This line sets the RTC with an explicit date & time, for example to set
+    // January 21, 2014 at 3am you would call:
+ //  rtc.adjust(DateTime(2022, 2, 21, 14, 02, 50));
+  }
+  pinMode(fan, OUTPUT);
+  //digitalWrite(fan,HIGH);
+  lcd.setCursor(5,0);
+  lcd.print("SYSTEM");
+  lcd.setCursor(2,1); 
+  lcd.print("INITIALIZING");
+  delay(1000);
+  lcd.clear();
+  
+  lcd.setCursor(2,1); 
+  lcd.print("--SYSTEM--");
+  lcd.setCursor(0,1); 
+  lcd.print("INITIALIZED");
+  delay(1000);
+  lcd.clear();
+
+   dht.begin();
+  Serial.println("DHTxx Unified Sensor Example");
+  // Print temperature sensor details.
+  sensor_t sensor;
+  dht.temperature().getSensor(&sensor);
+    // Print humidity sensor details.
+  dht.humidity().getSensor(&sensor);
+   // Set delay between sensor readings based on sensor details.
+ // delayMS = sensor.min_delay / 1000;
+
+   float calcR0 = 0;
+  for(int i = 1; i<=10; i ++)
+  {
+    MQ135.update(); // Update data, the arduino will be read the voltage on the analog pin
+    calcR0 += MQ135.calibrate(RatioMQ135CleanAir);
+    Serial.print(".");
+  }
+  MQ135.setR0(calcR0/10);
+  Serial.println("  done!.");
+  
+  if(isinf(calcR0)) {Serial.println("Warning: Conection issue founded, R0 is infite (Open circuit detected) please check your wiring and supply"); while(1);}
+  if(calcR0 == 0){Serial.println("Warning: Conection issue founded, R0 is zero (Analog pin with short circuit to ground) please check your wiring and supply"); while(1);}
+  /*****************************  MQ CAlibration ********************************************/ 
+  Serial.println("** Lectures from MQ-135 ****");
+  Serial.println("|    CO   |  Alcohol |   CO2  |  Tolueno  |  NH4  |  Acteona  |");  
+
+//float calcR0 = 0;
+  for(int i = 1; i<=10; i ++)
+  {
+    MQ131.update(); // Update data, the arduino will be read the voltage on the analog pin
+    calcR0 += MQ131.calibrate(RatioMQ131CleanAir);
+    Serial.print(".");
+  }
+  MQ131.setR0(calcR0/10);
+  Serial.println("  done!.");
+  
+  if(isinf(calcR0)) {Serial.println("Warning: Conection issue founded, R0 is infite (Open circuit detected) please check your wiring and supply"); while(1);}
+  if(calcR0 == 0){Serial.println("Warning: Conection issue founded, R0 is zero (Analog pin with short circuit to ground) please check your wiring and supply"); while(1);}
+  /*****************************  MQ CAlibration ********************************************/ 
+  MQ131.serialDebug(true);
+
+  for(int i = 1; i<=10; i ++)
+  {
+    MQ8.update(); // Update data, the arduino will be read the voltage on the analog pin
+    calcR0 += MQ8.calibrate(RatioMQ8CleanAir);
+    Serial.print(".");
+  }
+  MQ8.setR0(calcR0/10);
+  Serial.println("  done!.");
+  
+  if(isinf(calcR0)) {Serial.println("Warning: Conection issue founded, R0 is infite (Open circuit detected) please check your wiring and supply"); while(1);}
+  if(calcR0 == 0){Serial.println("Warning: Conection issue founded, R0 is zero (Analog pin with short circuit to ground) please check your wiring and supply"); while(1);}
+  /*****************************  MQ CAlibration ********************************************/ 
+  MQ8.serialDebug(true);
+}
+
+void loop() {
+  //MQ131.sample(); 
+
+    float pressure = myPressure.readPressure();
+      float altitude = myPressure.readAltitudeFt();
+
+  float temperature = myPressure.readTemp();
+  Serial.print(" Temp(c):");
+  Serial.print(temperature, 2);
+  
+  Serial.print(" Altitude(ft):");
+  Serial.print(altitude, 2);
+ // Serial.print(altm); Serial.println(" meters");
+  Serial.print("Pressure(Pa):");
+  Serial.print(pressure, 2);
+
+    MQ131.update(); // Update data, the arduino will be read the voltage on the analog pin
+  MQ131.readSensor(); // Sensor will read PPM concentration using the model and a and b values setted before or in the setup
+  MQ131.serialDebug();
+  MQ135.update(); // Update data, the arduino will be read the voltage on the analog pin
+
+  MQ8.update(); // Update data, the arduino will be read the voltage on the analog pin
+  MQ8.readSensor(); // Sensor will read PPM concentration using the model and a and b values setted before or in the setup
+  MQ8.serialDebug();
+
+Serial.print("OZONE:");
+Serial.println(MQ131.readSensor());
+  MQ135.setA(605.18); MQ135.setB(-3.937); // Configurate the ecuation values to get CO concentration
+  float CO = MQ135.readSensor(); // Sensor will read PPM concentration using the model and a and b values setted before or in the setup
+
+  MQ135.setA(110.47); MQ135.setB(-2.862); // Configurate the ecuation values to get CO2 concentration
+  float CO2 = MQ135.readSensor(); // Sensor will read PPM concentration using the model and a and b values setted before or in the setup
+
+  DateTime now = rtc.now();
+
+  sensors_event_t event;  
+  dht.temperature().getEvent(&event);
+  if (isnan(event.temperature)) {
+    Serial.println("Error reading temperature!");
+  }
+  else {
+    Serial.print("Temperature: ");
+    Serial.print(event.temperature);
+    Serial.println(" *C");
+
+  lcd.setCursor(0,0); 
+  lcd.print("NO2:");
+  lcd.setCursor(4,0); 
+  lcd.print(MQ131.readSensor()-0.54);
+  lcd.setCursor(9,0); 
+  lcd.print("ppm");
+
+  lcd.setCursor(0,1); 
+  lcd.print("out(Temp):");
+  lcd.setCursor(10,1); 
+  lcd.print(temperature, 2);
+  lcd.setCursor(14,1);
+  lcd.print((char)223); 
+  lcd.print("C");
+  delay(2500);
+  lcd.clear();
+  }
+  // Get humidity event and print its value.
+  dht.humidity().getEvent(&event);
+  if (isnan(event.relative_humidity)) {
+    Serial.println("Error reading humidity!");
+  }
+  else {
+    Serial.print("Humidity: ");
+    Serial.print(event.relative_humidity);
+    Serial.println("%");
+  }
+
+    lcd.setCursor(0, 0);
+    lcd.print("Date:");
+    lcd.setCursor(5, 0);
+    lcd.print(now.day());
+    lcd.setCursor(7, 0);
+    lcd.print("/");
+    lcd.setCursor(8, 0);
+    lcd.print(now.month());
+    lcd.setCursor(10, 0);
+    lcd.print("/");
+    lcd.setCursor(11, 0);
+    lcd.print(now.year());
+
+    
+    lcd.setCursor(0, 1);
+    lcd.print("Time-");
+
+    lcd.setCursor(6, 1);
+    lcd.print(now.hour());
+    lcd.setCursor(8, 1);
+    lcd.print(":");
+    lcd.setCursor(9, 1);
+    lcd.print(now.minute());
+    delay(2500);
+    lcd.clear();
+
+  lcd.setCursor(0,0); 
+  lcd.print("CH4:");
+  lcd.setCursor(4,0); 
+  lcd.print((MQ8.readSensor()-0.39)/100);
+  lcd.setCursor(10,0);
+  lcd.print("ppm");     // degree symbol  
+
+  lcd.setCursor(0,1); 
+  lcd.print("CO2:");
+  lcd.setCursor(4,1); 
+  lcd.print(MQ135.readSensor());
+  lcd.setCursor(9,1); 
+  lcd.print(" ppm");
+  delay(2500);
+  lcd.clear();
+
+  lcd.setCursor(0,0); 
+  lcd.print("Ozone:");
+  lcd.setCursor(6,0); 
+  lcd.print(MQ131.readSensor());
+  lcd.setCursor(11,0); 
+  lcd.print(" ppm");
+
+  lcd.setCursor(0,1); 
+  lcd.print("Rel.Hum:");
+  lcd.setCursor(8,1); 
+  lcd.print(event.relative_humidity);
+  lcd.setCursor(12,1); 
+  lcd.print(" %");
+  delay(2500);
+  lcd.clear();
+
+  lcd.setCursor(0,0); 
+  lcd.print("Alt:");
+  lcd.setCursor(4,0); 
+  lcd.print( altitude/ 3.281);
+  lcd.setCursor(11,0); 
+  lcd.print("m");
+
+  lcd.setCursor(0,1); 
+  lcd.print("Pres:");
+  lcd.setCursor(5,1); 
+  lcd.print(pressure/3377);
+  lcd.setCursor(11,1); 
+  lcd.print("InHg");
+  delay(2500);
+  lcd.clear();
+  
+//if(now.second()>=1  && now.second()<=59 ){
+  if(now.second()==5  || now.second()== 10 || now.second()== 15 || now.second()== 20 || now.second()== 25 || now.second()== 30 || now.second()== 35 || now.second()== 40 || now.second()== 45 || now.second()== 50 || now.second()== 55 || now.second()== 0){
+      lcd.setCursor(0,1);
+      lcd.print("LOGGING DATA..");
+      Serial.println("Save");
+      myFile = SD.open("air.csv", FILE_WRITE);
+
+  if (myFile) {
+    Serial.println("Writing to air.csv...");
+    Serial.println("\t\t");
+    
+    myFile.print(now.day(), DEC);
+    myFile.print('/');
+    myFile.print(now.month(), DEC);
+    myFile.print('/');
+    myFile.print(now.year(), DEC);
+    myFile.print("\t");
+    myFile.print(",");
+   
+    myFile.print(now.hour(), DEC);
+    myFile.print(':');
+    myFile.print(now.minute(), DEC);
+    myFile.print(':');
+    myFile.print(now.second(), DEC);
+    myFile.print("\t");
+    myFile.print(",");
+    
+    myFile.print(id);
+    myFile.print("\t");
+    myFile.print(",");
+ 
+    myFile.print(temperature, 2);
+    myFile.print("\t");
+    myFile.print(",");
+    
+    myFile.print(event.relative_humidity,2);
+    myFile.print("\t");
+    myFile.print(",");
+
+    myFile.print(MQ131.readSensor() ,2);
+    myFile.print("\t");
+    myFile.print(",");
+
+    myFile.print(MQ131.readSensor()-0.54 ,2);
+    myFile.print("\t");
+    myFile.print(",");
+
+    myFile.print(MQ135.readSensor(),2);
+    myFile.print("\t");
+    myFile.print(",");
+
+    myFile.print(MQ8.readSensor(),2);
+    myFile.print("\t");
+    myFile.print(",");
+
+    myFile.print(MQ8.readSensor()-0.39,2);
+    myFile.print("\t");
+    myFile.print(",");  
+
+    myFile.print(pressure/3377);
+    myFile.print("\t");
+    myFile.print(","); 
+
+    myFile.print(altitude/3.281);
+    myFile.print("\t");
+    myFile.print(","); 
+    myFile.println(",");
+    // close the file:
+    myFile.close();
+    Serial.print("done writing to card.");
+    Serial.println("\t\t");
+     delay (100);
+  } else {
+    // if the file didn't open, print an error:
+    Serial.println("error opening air.csv");
+  }}
+   id++;
+}
